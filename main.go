@@ -11,7 +11,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"strconv"
 	"strings"
@@ -20,8 +19,6 @@ import (
 
 // Variables used for command line parameters
 var (
-	Email    string
-	Password string
 	Token    string
 	BotID    string
 )
@@ -34,8 +31,6 @@ type UserData struct {
 }
 
 func init() {
-	flag.StringVar(&Email, "e", "", "Account Email")
-	flag.StringVar(&Password, "p", "", "Account Password")
 	flag.StringVar(&Token, "t", "", "Account Token")
 	flag.Parse()
 }
@@ -43,25 +38,17 @@ func init() {
 const (
 	EMPTY_PADID = 0
 	PROFILES_DIR = "profiles/"
+	COMMAND_LIST = "myid, mygroup, mydescription, schedule, getinfo, ping, pong"
 )
 
 func main() {
 
 	// Create a new Discord session using the provided login information.
-	dg, err := discordgo.New(Email, Password, Token)
+	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
 		return
 	}
-
-	// Get the account information.
-	u, err := dg.User("@me")
-	if err != nil {
-		fmt.Println("error obtaining account details,", err)
-	}
-
-	// Store the account ID for later use.
-	BotID = u.ID
 
 	// Register messageCreate as a callback for the messageCreate events.
 	dg.AddHandler(messageCreate)
@@ -79,57 +66,7 @@ func main() {
 	return
 }
 
-// Load user's data from file
-// TODO datastore will change to a database later
-func loadData(id string) (*UserData, error) {
-	
-	// load the file data
-	body, err := ioutil.ReadFile(PROFILES_DIR + id)
-	if err != nil {
-		return nil, err
-	}
-
-	// parse the body data
-	lines := strings.Split(string(body), "\n")
-	username := lines[0]
-	padid, _ := strconv.Atoi(lines[1])
-	description := lines[2]
-
-	return &UserData{DiscordID: id, Username: username, PADID: padid, Description: description}, nil
-}
-
-// Save user's data to file
-func saveData(data *UserData) (error) {
-
-	// check if file for this Discord ID exists already
-	username := data.Username
-	
-	currData, err := loadData(data.DiscordID)
-	var padid int
-	var description string
-
-	// get the existing data, if any
-	if err == nil {
-		padid = currData.PADID
-		description = currData.Description
-		fmt.Printf("currData contents = %s %i %s\n", currData.Username, currData.PADID, currData.Description)
-	} else {
-		padid = EMPTY_PADID
-		description = ""
-	}
-
-	// prepare to update existing data if necessary
-	if data.PADID != EMPTY_PADID {
-		padid = data.PADID
-	}
-	if data.Description != "" {
-		description = data.Description
-	}
-	
-	body := username + "\n" + strconv.Itoa(padid) + "\n" + description
-	return ioutil.WriteFile(PROFILES_DIR + data.DiscordID, []byte(body), 0600)
-}
-
+// Given a PAD ID, return which group that ID belongs to
 func getGroup(padid int) (string, error) {
 	groupDigit := (padid / int(math.Pow(10, 6))) % 10
 	switch groupDigit {
@@ -143,11 +80,11 @@ func getGroup(padid int) (string, error) {
 }
 
 // This function will be called (due to AddHandler above) every time a new
-// message is created on any channel that the autenticated bot has access to.
+// message is created on any channel that the authenticated bot has access to.
 func messageCreate(sess *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// Ignore all messages created by the bot itself
-	if m.Author.ID == BotID {
+	if m.Author.ID == sess.State.User.ID {
 		return
 	}
 
@@ -158,7 +95,7 @@ func messageCreate(sess *discordgo.Session, m *discordgo.MessageCreate) {
 
 		// read in a series of tokens
 		message := "Hi there! I'm the LamPAD Bot.\n" +
-			"Here are my commands: myid, mygroup, mydescription, schedule, getinfo, ping, pong\n" + 
+			"Here are my commands: " + COMMAND_LIST + "\n" + 
 			"Example: -lampad ping"
 		inputTokens := strings.Split(m.Content, " ")
 		if len(inputTokens) >= 2 {
@@ -187,13 +124,11 @@ func messageCreate(sess *discordgo.Session, m *discordgo.MessageCreate) {
 						inputPADID, errAtoi := strconv.Atoi(inputTokens[2])
 						if errAtoi == nil {
 							newData := &UserData{DiscordID: discordID, Username: username, PADID: inputPADID, Description: ""}
-							// fmt.Printf("id username padid = %s %i %s", discordID, username, inputPADID)
 							err := saveData(newData)
 
 							// determine what group based on PAD ID
-							group, _ := getGroup(inputPADID)
-
 							if err == nil {
+								group, _ := getGroup(inputPADID)
 								message = "I have updated your PAD ID, " + username + "! You are in group " + group
 							} else {
 								message = "Oops! Something went wrong and I wasn't able to update your PAD ID.\n" + 
@@ -250,7 +185,7 @@ func messageCreate(sess *discordgo.Session, m *discordgo.MessageCreate) {
 					message = "This command is a work-in-progress; check back later!"
 				default:
 					message = "Hello! Please specify a valid command.\n" + 
-						"My commands: myid, mygroup, schedule, ping, pong"
+						"My commands are: " + COMMAND_LIST
 			}
 		}
 
