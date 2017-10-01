@@ -1,5 +1,0 @@
-Client/Application ID: 209219415978409984
-Secret: jaDLZU6ZG5jGjGg8pyeyjT9bxMGYXD0I
-Username: narwhal-test-bot#6935
-Bot ID: 209256578816278528
-Token: MjA5MjU2NTc4ODE2Mjc4NTI4.DHmA_g.TdHZMETF2yTifJP0xnrPXtEgbyA
